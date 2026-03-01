@@ -1,0 +1,9 @@
+fastapi
+frontend
+python-multipart
+tools
+uvicorn
+dotenv
+starlette
+itsdangerous
+pyserial
