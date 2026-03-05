@@ -2,12 +2,14 @@
 #define RAIN_SENSOR_PIN A0
 #define TRIG_PIN 9
 #define ECHO_PIN 10
+#define HALL_MAGNET_PIN 4
 
 void setup() {
   Serial.begin(9600);
 
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
+  pinMode(HALL_MAGNET_PIN, INPUT);
 }
 
 float readUltrasonicDistance() {
@@ -30,6 +32,7 @@ float readUltrasonicDistance() {
 void loop() {
   // Read rain sensor (0–1023)
   int rainValue = analogRead(RAIN_SENSOR_PIN);
+  int hallMagnetSensorStatus = digitalRead(HALL_MAGNET_PIN);
 
   // Read ultrasonic sensor
   float distance = readUltrasonicDistance();
@@ -51,6 +54,37 @@ void loop() {
   Serial.print("\"rain_status\": \"");
   Serial.print(rainStatus);
   Serial.print("\", ");
+
+  Serial.print("\"hall_magnet_status\": \"");
+  Serial.print(hallMagnetSensorStatus);
+  Serial.print("\", ");
+
+  if (distance <= 5){
+    Serial.print("\"isInRange\": \"");
+    Serial.print(true);
+    Serial.print("\", ");
+  }
+  else{
+    Serial.print("\"isInRange\": \"");
+    Serial.print(false);
+    Serial.print("\", ");
+  }
+
+  if(hallMagnetSensorStatus || (hallMagnetSensorStatus && rainStatus)){
+    Serial.print("\"waste_type\": \"");
+    Serial.print("METAL");
+    Serial.print("\", ");
+  }
+  else if(rainStatus){
+    Serial.print("\"waste_type\": \"");
+    Serial.print("WET");
+    Serial.print("\", ");
+  }
+  else{
+    Serial.print("\"waste_type\": \"");
+    Serial.print("DRY");
+    Serial.print("\", ");
+  }
 
   Serial.print("\"distance_cm\": ");
   Serial.print(distance);

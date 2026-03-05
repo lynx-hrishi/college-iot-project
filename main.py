@@ -10,7 +10,7 @@ serialInstance = makeConnectionToComPort()
 
 @app.get("/")
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", { "request": request })
 
 @app.get("/get-data")
 async def get_sensor_data():

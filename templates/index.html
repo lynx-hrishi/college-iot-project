@@ -269,6 +269,100 @@
     color: var(--muted);
   }
 
+  /* ─── WASTE TYPE BANNER ─── */
+  .waste-banner {
+    margin-bottom: 40px;
+    border-radius: 20px;
+    padding: 36px 40px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    border: 2px solid var(--banner-color, var(--border));
+    background: var(--banner-bg, rgba(255,255,255,0.02));
+    box-shadow: 0 0 60px var(--banner-shadow, transparent);
+    transition: border-color 0.5s, background 0.5s, box-shadow 0.5s;
+    position: relative;
+    overflow: hidden;
+  }
+  .waste-banner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 10% 50%, var(--banner-bg, transparent) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .waste-banner.type-METAL {
+    --banner-color: var(--metal);
+    --banner-bg: rgba(176,196,222,0.06);
+    --banner-shadow: rgba(176,196,222,0.15);
+  }
+  .waste-banner.type-WET {
+    --banner-color: var(--wet);
+    --banner-bg: rgba(0,201,255,0.06);
+    --banner-shadow: rgba(0,201,255,0.15);
+  }
+  .waste-banner.type-DRY {
+    --banner-color: var(--dry);
+    --banner-bg: rgba(245,166,35,0.06);
+    --banner-shadow: rgba(245,166,35,0.15);
+  }
+  .waste-banner.type-UNKNOWN {
+    --banner-color: var(--muted);
+    --banner-bg: rgba(90,95,114,0.06);
+    --banner-shadow: transparent;
+  }
+  .banner-icon { font-size: 52px; flex-shrink: 0; line-height: 1; }
+  .banner-text {}
+  .banner-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .banner-type {
+    font-size: clamp(36px, 6vw, 64px);
+    font-weight: 800;
+    letter-spacing: -2px;
+    color: var(--banner-color, var(--text));
+    transition: color 0.4s;
+    line-height: 1;
+  }
+  .banner-sub {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .banner-pulse {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .banner-pulse-ring {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    border: 2px solid var(--banner-color, var(--muted));
+    display: flex; align-items: center; justify-content: center;
+    animation: scanPulse 1.8s ease-in-out infinite;
+    box-shadow: 0 0 20px var(--banner-shadow, transparent);
+  }
+  .banner-pulse-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--banner-color, var(--muted));
+    animation: blink 1.4s infinite;
+  }
+  .banner-fetch-time {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
   /* ─── LIVE SCAN WIDGET ─── */
   .scan-widget {
     margin-top: 48px;
@@ -540,6 +634,7 @@
     <div class="live-item"><span>SYSTEM</span> <b>ONLINE</b></div>
     <div class="live-item"><span>BOARD</span> <b>ARDUINO UNO</b></div>
     <div class="live-item"><span>SENSORS</span> <b>3 ACTIVE</b></div>
+    <div class="live-item" id="liveWasteType"><span>WASTE</span> <b>—</b></div>
     <div class="live-item" id="liveTime"><span>UPTIME</span> <b>00:00:00</b></div>
   </div>
 </div>
@@ -576,6 +671,20 @@
 <section class="section">
   <div class="section-label">Detection Output</div>
   <div class="section-title">Waste <span>Classification</span></div>
+
+  <!-- WASTE TYPE BANNER -->
+  <div class="waste-banner type-UNKNOWN" id="wasteBanner">
+    <div class="banner-icon" id="bannerIcon">⏳</div>
+    <div class="banner-text">
+      <div class="banner-label">Detected Waste Type</div>
+      <div class="banner-type" id="bannerType">—</div>
+      <div class="banner-sub" id="bannerSub">Waiting for sensor data...</div>
+    </div>
+    <div class="banner-pulse">
+      <div class="banner-pulse-ring"><div class="banner-pulse-dot"></div></div>
+      <div class="banner-fetch-time" id="lastFetch">—</div>
+    </div>
+  </div>
 
   <div class="status-grid">
 
@@ -630,20 +739,24 @@
 
     <div class="scan-readings">
       <div class="reading">
-        <div class="reading-label">Object In Range</div>
-        <div class="reading-value active" id="inRange">YES</div>
+        <div class="reading-label">In Range</div>
+        <div class="reading-value inactive" id="inRange">—</div>
       </div>
       <div class="reading">
-        <div class="reading-label">Distance</div>
-        <div class="reading-value active" id="distVal">7.2 cm</div>
+        <div class="reading-label">Distance (cm)</div>
+        <div class="reading-value inactive" id="distVal">—</div>
       </div>
       <div class="reading">
-        <div class="reading-label">Hall Sensor</div>
-        <div class="reading-value inactive" id="hallVal">LOW</div>
+        <div class="reading-label">Hall Magnet</div>
+        <div class="reading-value inactive" id="hallVal">—</div>
       </div>
       <div class="reading">
-        <div class="reading-label">Rain Sensor</div>
-        <div class="reading-value inactive" id="rainVal">DRY</div>
+        <div class="reading-label">Rain Status</div>
+        <div class="reading-value inactive" id="rainStatus">—</div>
+      </div>
+      <div class="reading">
+        <div class="reading-label">Rain Raw ADC</div>
+        <div class="reading-value inactive" id="rainRaw">—</div>
       </div>
     </div>
   </div>
@@ -784,7 +897,7 @@
 </footer>
 
 <script>
-  // Uptime Counter
+  // ─── UPTIME COUNTER ───
   let seconds = 0;
   setInterval(() => {
     seconds++;
@@ -794,29 +907,85 @@
     document.getElementById('liveTime').innerHTML = `<span>UPTIME</span> <b>${h}:${m}:${s}</b>`;
   }, 1000);
 
-  // Simulated sensor readings cycling
-  const scenarios = [
-    { inRange: 'YES', dist: '7.2 cm', hall: 'LOW', rain: 'DRY',    hallClass: 'active',   rainClass: 'inactive' },
-    { inRange: 'YES', dist: '5.8 cm', hall: 'HIGH', rain: 'DRY',   hallClass: 'inactive', rainClass: 'inactive' },
-    { inRange: 'YES', dist: '6.4 cm', hall: 'LOW', rain: 'WET',    hallClass: 'active',   rainClass: 'active'   },
-    { inRange: 'NO',  dist: '28.3 cm',hall: 'LOW', rain: 'DRY',    hallClass: 'inactive', rainClass: 'inactive' },
-    { inRange: 'YES', dist: '4.1 cm', hall: 'HIGH', rain: 'WET',   hallClass: 'inactive', rainClass: 'active'   },
-  ];
+  // ─── WASTE TYPE CONFIG ───
+  const WASTE_CONFIG = {
+    METAL: { icon: '🔩', color: 'var(--metal)', sub: 'Ferrous/magnetic material detected via Hall Effect Sensor', cls: 'type-METAL' },
+    WET:   { icon: '💧', color: 'var(--wet)',   sub: 'Moisture detected on waste surface via Rain Sensor',       cls: 'type-WET'   },
+    DRY:   { icon: '📦', color: 'var(--dry)',   sub: 'No moisture or magnetic field — classified as Dry Waste',  cls: 'type-DRY'   },
+  };
 
-  let idx = 0;
-  setInterval(() => {
-    idx = (idx + 1) % scenarios.length;
-    const s = scenarios[idx];
-    document.getElementById('inRange').textContent = s.inRange;
-    document.getElementById('inRange').className = 'reading-value ' + (s.inRange === 'YES' ? 'active' : 'inactive');
-    document.getElementById('distVal').textContent = s.dist;
-    document.getElementById('hallVal').textContent = s.hall;
-    document.getElementById('hallVal').className = 'reading-value ' + s.hallClass;
-    document.getElementById('rainVal').textContent = s.rain;
-    document.getElementById('rainVal').className = 'reading-value ' + s.rainClass;
-  }, 2800);
+  // ─── DOM REFS ───
+  const banner     = document.getElementById('wasteBanner');
+  const bannerIcon = document.getElementById('bannerIcon');
+  const bannerType = document.getElementById('bannerType');
+  const bannerSub  = document.getElementById('bannerSub');
+  const lastFetch  = document.getElementById('lastFetch');
 
-  // Intersection Observer for comp-card animations
+  function setVal(id, text, isActive) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'reading-value ' + (isActive ? 'active' : 'inactive');
+  }
+
+  function updateUI(data) {
+    const { rain_raw, rain_status, hall_magnet_status, isInRange, waste_type, distance_cm } = data;
+
+    // ── Scan readings ──
+    const inRange = isInRange === '1' || isInRange === 1;
+    setVal('inRange',    inRange ? 'YES' : 'NO',                         inRange);
+    setVal('distVal',    distance_cm !== undefined ? `${distance_cm} cm` : '—', inRange);
+
+    const hallActive = hall_magnet_status === '1' || hall_magnet_status === 1;
+    setVal('hallVal',    hallActive ? 'DETECTED' : 'NONE',               hallActive);
+
+    const rainWet = rain_status === '1' || rain_status === 1;
+    setVal('rainStatus', rainWet ? 'WET' : 'DRY',                        rainWet);
+    setVal('rainRaw',    rain_raw !== undefined ? String(rain_raw) : '—', true);
+
+    // ── Waste type banner ──
+    const type   = (waste_type || 'UNKNOWN').toUpperCase();
+    const config = WASTE_CONFIG[type] || { icon: '❓', sub: 'Unknown waste type received.', cls: 'type-UNKNOWN' };
+
+    banner.className = `waste-banner ${config.cls}`;
+    bannerIcon.textContent = config.icon;
+    bannerType.textContent = type;
+    bannerSub.textContent  = config.sub;
+
+    // ── Last fetch timestamp ──
+    const now = new Date();
+    lastFetch.textContent = now.toLocaleTimeString();
+
+    // ── Live bar waste type ──
+    const liveWaste = document.getElementById('liveWasteType');
+    if (liveWaste) liveWaste.innerHTML = `<span>WASTE</span> <b style="color:${config.color || 'var(--text)'}">${type}</b>`;
+  }
+
+  function showError() {
+    bannerType.textContent = 'NO DATA';
+    bannerSub.textContent  = 'Cannot reach /get-data — check server connection.';
+    banner.className = 'waste-banner type-UNKNOWN';
+    bannerIcon.textContent = '⚠️';
+    lastFetch.textContent = 'ERROR';
+  }
+
+  // ─── POLLING ───
+  async function fetchData() {
+    try {
+      const res  = await fetch('/get-data');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      updateUI(json.data);
+    } catch (e) {
+      console.warn('SmartSort: fetch failed —', e.message);
+      showError();
+    }
+  }
+
+  fetchData();                        // immediate first fetch
+  setInterval(fetchData, 2000);       // poll every 2 seconds
+
+  // ─── COMP CARD ANIMATIONS ───
   const cards = document.querySelectorAll('.comp-card');
   const observer = new IntersectionObserver(entries => {
     entries.forEach(e => {
