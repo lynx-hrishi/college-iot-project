@@ -7,3 +7,4 @@ dotenv
 starlette
 itsdangerous
 pyserial
+jinja2

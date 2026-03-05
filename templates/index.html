@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SmartSort — IoT Waste Segregation</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0c0f;
+    --card: #111318;
+    --border: rgba(255,255,255,0.07);
+    --text: #e8eaf0;
+    --muted: #5a5f72;
+
+    --wet: #00c9ff;
+    --wet-glow: rgba(0,201,255,0.18);
+    --dry: #f5a623;
+    --dry-glow: rgba(245,166,35,0.18);
+    --metal: #b0c4de;
+    --metal-glow: rgba(176,196,222,0.18);
+
+    --accent: #39ff6e;
+    --accent-dim: rgba(57,255,110,0.12);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    overflow-x: hidden;
+    cursor: default;
+  }
+
+  /* ─── NOISE TEXTURE ─── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: .5;
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 60px 24px;
+    overflow: hidden;
+  }
+
+  .hero-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+  }
+  .hero-orb.a { width: 500px; height: 500px; background: rgba(57,255,110,0.07); top: -100px; left: -150px; }
+  .hero-orb.b { width: 400px; height: 400px; background: rgba(0,201,255,0.06); bottom: -80px; right: -100px; }
+  .hero-orb.c { width: 300px; height: 300px; background: rgba(176,196,222,0.05); top: 40%; left: 60%; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(57,255,110,0.25);
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 4px;
+    margin-bottom: 28px;
+    animation: fadeUp 0.8s ease both;
+  }
+  .badge-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: blink 1.4s infinite; }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  .hero h1 {
+    font-size: clamp(42px, 8vw, 96px);
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -2px;
+    animation: fadeUp 0.9s 0.1s ease both;
+  }
+  .hero h1 em {
+    font-style: normal;
+    color: var(--accent);
+  }
+  .hero-sub {
+    margin-top: 20px;
+    font-size: clamp(15px, 2vw, 18px);
+    color: var(--muted);
+    font-weight: 400;
+    max-width: 520px;
+    line-height: 1.65;
+    animation: fadeUp 1s 0.2s ease both;
+  }
+
+  .hero-chips {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 36px;
+    animation: fadeUp 1s 0.35s ease both;
+  }
+  .chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 100px;
+    border: 1px solid;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .chip:hover { transform: translateY(-2px); }
+  .chip-wet   { border-color: var(--wet);   color: var(--wet);   background: var(--wet-glow);   box-shadow: 0 0 0 0 transparent; }
+  .chip-dry   { border-color: var(--dry);   color: var(--dry);   background: var(--dry-glow);   }
+  .chip-metal { border-color: var(--metal); color: var(--metal); background: var(--metal-glow); }
+  .chip-wet:hover   { box-shadow: 0 0 20px var(--wet-glow); }
+  .chip-dry:hover   { box-shadow: 0 0 20px var(--dry-glow); }
+  .chip-metal:hover { box-shadow: 0 0 20px var(--metal-glow); }
+
+  .chip-icon { font-size: 16px; }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    animation: fadeUp 1s 0.6s ease both;
+  }
+  .scroll-arrow { width: 1px; height: 36px; background: linear-gradient(to bottom, var(--muted), transparent); animation: scrollPulse 1.8s infinite; }
+  @keyframes scrollPulse { 0%,100%{opacity:.3;transform:scaleY(0.8)} 50%{opacity:1;transform:scaleY(1)} }
+
+  /* ─── LIVE DISPLAY ─── */
+  .section { position: relative; z-index: 1; padding: 80px 24px; max-width: 1100px; margin: 0 auto; }
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: clamp(28px, 4vw, 48px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 48px;
+  }
+  .section-title span { color: var(--muted); }
+
+  /* ─── STATUS PANEL ─── */
+  .status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  .status-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 28px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+    cursor: pointer;
+  }
+  .status-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 20% 20%, var(--card-glow, transparent) 0%, transparent 65%);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .status-card:hover::before { opacity: 1; }
+  .status-card:hover { transform: translateY(-4px); }
+
+  .status-card.wet-card   { --card-color: var(--wet);   --card-glow: var(--wet-glow); }
+  .status-card.dry-card   { --card-color: var(--dry);   --card-glow: var(--dry-glow); }
+  .status-card.metal-card { --card-color: var(--metal); --card-glow: var(--metal-glow); }
+
+  .status-card:hover { border-color: var(--card-color); box-shadow: 0 0 30px var(--card-glow); }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+  }
+  .card-icon {
+    width: 52px; height: 52px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-size: 24px;
+  }
+  .card-status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--card-color, var(--muted));
+    box-shadow: 0 0 10px var(--card-color, var(--muted));
+    margin-top: 6px;
+    animation: blink 2s infinite;
+  }
+
+  .card-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .card-title {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--card-color, var(--text));
+  }
+  .card-desc {
+    margin-top: 14px;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .card-sensor {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+    padding: 5px 12px;
+    border-radius: 100px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ─── LIVE SCAN WIDGET ─── */
+  .scan-widget {
+    margin-top: 48px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px;
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .scan-visual {
+    flex: 0 0 auto;
+    position: relative;
+    width: 140px; height: 140px;
+  }
+  .scan-ring {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    border: 2px solid;
+    animation: scanPulse 2s ease-in-out infinite;
+  }
+  .scan-ring:nth-child(1) { border-color: rgba(57,255,110,0.6); animation-delay: 0s; }
+  .scan-ring:nth-child(2) { inset: 14px; border-color: rgba(57,255,110,0.35); animation-delay: 0.3s; }
+  .scan-ring:nth-child(3) { inset: 28px; border-color: rgba(57,255,110,0.2); animation-delay: 0.6s; }
+  .scan-center {
+    position: absolute; inset: 44px;
+    background: var(--accent-dim);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    border: 1px solid rgba(57,255,110,0.3);
+  }
+
+  @keyframes scanPulse {
+    0%,100% { transform: scale(1); opacity:0.7; }
+    50% { transform: scale(1.05); opacity:1; }
+  }
+
+  .scan-info { flex: 1; min-width: 200px; }
+  .scan-info h3 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .scan-info p { color: var(--muted); font-size: 14px; line-height: 1.65; }
+
+  .scan-readings {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .reading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    min-width: 200px;
+  }
+  .reading-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-transform: uppercase;
+    flex: 1;
+  }
+  .reading-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .reading-value.active { color: var(--accent); }
+  .reading-value.inactive { color: var(--muted); }
+
+  /* ─── COMPONENTS SECTION ─── */
+  .comp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+  }
+
+  .comp-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transition: border-color 0.3s, transform 0.3s;
+    animation: fadeUp 0.6s ease both;
+  }
+  .comp-card:hover { border-color: rgba(57,255,110,0.25); transform: translateY(-3px); }
+
+  .comp-card:nth-child(1) { animation-delay: 0.0s; }
+  .comp-card:nth-child(2) { animation-delay: 0.1s; }
+  .comp-card:nth-child(3) { animation-delay: 0.2s; }
+  .comp-card:nth-child(4) { animation-delay: 0.3s; }
+  .comp-card:nth-child(5) { animation-delay: 0.4s; }
+
+  .comp-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .comp-icon {
+    width: 48px; height: 48px;
+    background: rgba(57,255,110,0.06);
+    border: 1px solid rgba(57,255,110,0.15);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .comp-name {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .comp-role {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-top: 2px;
+  }
+  .comp-body {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .comp-specs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .spec-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+  }
+
+  /* ─── FLOW DIAGRAM ─── */
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-top: 48px;
+    padding: 40px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+  }
+
+  .flow-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+    min-width: 100px;
+    padding: 0 12px;
+  }
+  .flow-bubble {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    border: 2px solid;
+    position: relative;
+  }
+  .flow-bubble.sense { border-color: rgba(57,255,110,0.4); background: rgba(57,255,110,0.06); }
+  .flow-bubble.process { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.03); }
+  .flow-bubble.classify { border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.06); }
+  .flow-bubble.output { border-color: rgba(0,201,255,0.4); background: rgba(0,201,255,0.06); }
+
+  .flow-name { font-size: 13px; font-weight: 600; }
+  .flow-sub { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; }
+
+  .flow-arrow {
+    color: var(--muted);
+    font-size: 20px;
+    padding: 0 4px;
+    flex-shrink: 0;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    text-align: center;
+    padding: 48px 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 1px;
+    position: relative; z-index: 1;
+  }
+  footer strong { color: var(--accent); }
+
+  /* ─── DIVIDER ─── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border), transparent);
+    margin: 0 24px;
+  }
+
+  /* ─── ANIMATIONS ─── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── SIMULATED LIVE STATUS ─── */
+  .live-bar {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+  .live-pill {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--accent);
+  }
+  .live-pill-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: blink 1s infinite; }
+  .live-bar-items { display: flex; gap: 24px; flex-wrap: wrap; }
+  .live-item { display: flex; align-items: center; gap: 8px; }
+  .live-item span:first-child { color: var(--muted); }
+  .live-item b { color: var(--text); }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .scan-widget { flex-direction: column; }
+    .flow { gap: 8px; }
+    .flow-arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<!-- LIVE STATUS BAR -->
+<div class="live-bar">
+  <div class="live-pill">
+    <div class="live-pill-dot"></div>
+    LIVE
+  </div>
+  <div class="live-bar-items">
+    <div class="live-item"><span>SYSTEM</span> <b>ONLINE</b></div>
+    <div class="live-item"><span>BOARD</span> <b>ARDUINO UNO</b></div>
+    <div class="live-item"><span>SENSORS</span> <b>3 ACTIVE</b></div>
+    <div class="live-item" id="liveTime"><span>UPTIME</span> <b>00:00:00</b></div>
+  </div>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-orb a"></div>
+  <div class="hero-orb b"></div>
+  <div class="hero-orb c"></div>
+
+  <div class="badge">
+    <div class="badge-dot"></div>
+    IoT Waste Segregation System
+  </div>
+
+  <h1>Smart<em>Sort</em></h1>
+  <p class="hero-sub">An Arduino-based intelligent waste classification system that detects and segregates waste into Metal, Dry, and Wet categories using real-time sensor fusion.</p>
+
+  <div class="hero-chips">
+    <div class="chip chip-metal"><span class="chip-icon">🧲</span> Metal</div>
+    <div class="chip chip-dry"><span class="chip-icon">📦</span> Dry</div>
+    <div class="chip chip-wet"><span class="chip-icon">💧</span> Wet</div>
+  </div>
+
+  <div class="scroll-hint">
+    <span>SCROLL</span>
+    <div class="scroll-arrow"></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- WASTE DETECTION STATUS -->
+<section class="section">
+  <div class="section-label">Detection Output</div>
+  <div class="section-title">Waste <span>Classification</span></div>
+
+  <div class="status-grid">
+
+    <div class="status-card wet-card">
+      <div class="card-header">
+        <div class="card-icon">💧</div>
+        <div class="card-status-dot"></div>
+      </div>
+      <div class="card-label">Category 01</div>
+      <div class="card-title">WET</div>
+      <div class="card-desc">Organic or liquid-containing waste. Detected when the rain sensor registers moisture or conductivity on the waste surface.</div>
+      <div class="card-sensor">🌧 Rain Sensor · FC-37</div>
+    </div>
+
+    <div class="status-card dry-card">
+      <div class="card-header">
+        <div class="card-icon">📦</div>
+        <div class="card-status-dot"></div>
+      </div>
+      <div class="card-label">Category 02</div>
+      <div class="card-title">DRY</div>
+      <div class="card-desc">Non-metallic, non-wet waste. Paper, plastic, cardboard. Identified as a fallback when neither moisture nor magnetic field is detected.</div>
+      <div class="card-sensor">⚙️ Logic-Based Classification</div>
+    </div>
+
+    <div class="status-card metal-card">
+      <div class="card-header">
+        <div class="card-icon">🔩</div>
+        <div class="card-status-dot"></div>
+      </div>
+      <div class="card-label">Category 03</div>
+      <div class="card-title">METAL</div>
+      <div class="card-desc">Ferrous or magnetically responsive material. Detected when the Hall effect sensor registers a magnetic field from the waste object.</div>
+      <div class="card-sensor">🧲 Hall Effect Sensor · A3144</div>
+    </div>
+
+  </div>
+
+  <!-- SCAN WIDGET -->
+  <div class="scan-widget">
+    <div class="scan-visual">
+      <div class="scan-ring"></div>
+      <div class="scan-ring"></div>
+      <div class="scan-ring"></div>
+      <div class="scan-center">📡</div>
+    </div>
+
+    <div class="scan-info">
+      <h3>Ultrasonic Scan Gate</h3>
+      <p>The HC-SR04 ultrasonic sensor acts as a trigger. It scans for objects within a minimum threshold distance (~5–10 cm). Once an object is detected in range, the system activates the Hall and rain sensors to classify the waste.</p>
+    </div>
+
+    <div class="scan-readings">
+      <div class="reading">
+        <div class="reading-label">Object In Range</div>
+        <div class="reading-value active" id="inRange">YES</div>
+      </div>
+      <div class="reading">
+        <div class="reading-label">Distance</div>
+        <div class="reading-value active" id="distVal">7.2 cm</div>
+      </div>
+      <div class="reading">
+        <div class="reading-label">Hall Sensor</div>
+        <div class="reading-value inactive" id="hallVal">LOW</div>
+      </div>
+      <div class="reading">
+        <div class="reading-label">Rain Sensor</div>
+        <div class="reading-value inactive" id="rainVal">DRY</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- COMPONENTS SECTION -->
+<section class="section">
+  <div class="section-label">Hardware</div>
+  <div class="section-title">Components <span>Used</span></div>
+
+  <div class="comp-grid">
+
+    <div class="comp-card">
+      <div class="comp-header">
+        <div class="comp-icon">🧠</div>
+        <div>
+          <div class="comp-name">Arduino Uno</div>
+          <div class="comp-role">Microcontroller · Brain</div>
+        </div>
+      </div>
+      <div class="comp-body">The central processing unit of the project. It reads sensor data, applies classification logic, and controls output indicators (LEDs/servo motor). Runs on 5V and operates at 16 MHz.</div>
+      <div class="comp-specs">
+        <span class="spec-tag">ATmega328P</span>
+        <span class="spec-tag">14 Digital I/O</span>
+        <span class="spec-tag">6 Analog In</span>
+        <span class="spec-tag">5V / 16MHz</span>
+      </div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-header">
+        <div class="comp-icon">📡</div>
+        <div>
+          <div class="comp-name">HC-SR04</div>
+          <div class="comp-role">Ultrasonic Sensor · Proximity Gate</div>
+        </div>
+      </div>
+      <div class="comp-body">Emits ultrasonic pulses and measures echo return time to calculate object distance. Used as the entry trigger — if an object enters within the defined minimum distance, the classification pipeline activates.</div>
+      <div class="comp-specs">
+        <span class="spec-tag">Range: 2–400 cm</span>
+        <span class="spec-tag">Trigger + Echo</span>
+        <span class="spec-tag">5V VCC</span>
+        <span class="spec-tag">40kHz</span>
+      </div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-header">
+        <div class="comp-icon">🌧</div>
+        <div>
+          <div class="comp-name">FC-37 Rain Sensor</div>
+          <div class="comp-role">Moisture Detector · Wet Classification</div>
+        </div>
+      </div>
+      <div class="comp-body">Detects moisture or water content on the waste surface via electrical conductivity between its sensing traces. Outputs both analog voltage (moisture level) and a digital HIGH/LOW signal relative to a set threshold.</div>
+      <div class="comp-specs">
+        <span class="spec-tag">Analog + Digital Out</span>
+        <span class="spec-tag">3.3V – 5V</span>
+        <span class="spec-tag">LM393 Comparator</span>
+        <span class="spec-tag">Adjustable Threshold</span>
+      </div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-header">
+        <div class="comp-icon">🧲</div>
+        <div>
+          <div class="comp-name">A3144 Hall Sensor</div>
+          <div class="comp-role">Magnetic Field Detector · Metal Classification</div>
+        </div>
+      </div>
+      <div class="comp-body">A unipolar Hall effect sensor that detects the presence of a magnetic field from ferrous or magnetic waste objects. Outputs LOW when a south-pole magnetic field is present, making it ideal for detecting metal items near a magnet mounted on the bin.</div>
+      <div class="comp-specs">
+        <span class="spec-tag">Digital Output</span>
+        <span class="spec-tag">4.5V – 24V</span>
+        <span class="spec-tag">Unipolar</span>
+        <span class="spec-tag">Open Collector</span>
+      </div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-header">
+        <div class="comp-icon">💡</div>
+        <div>
+          <div class="comp-name">Output Indicators</div>
+          <div class="comp-role">LEDs / Servo · Visual Feedback</div>
+        </div>
+      </div>
+      <div class="comp-body">RGB LEDs or individual color LEDs (Blue=Wet, Yellow=Dry, Silver/White=Metal) provide instant visual feedback on classification result. Optionally, a servo motor can physically route waste into the correct bin compartment.</div>
+      <div class="comp-specs">
+        <span class="spec-tag">3× LEDs</span>
+        <span class="spec-tag">220Ω Resistors</span>
+        <span class="spec-tag">Servo (Optional)</span>
+        <span class="spec-tag">5V Logic</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SYSTEM FLOW -->
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-bubble sense">📡</div>
+      <div class="flow-name">Detect</div>
+      <div class="flow-sub">HC-SR04</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-bubble process">🧲</div>
+      <div class="flow-name">Hall Check</div>
+      <div class="flow-sub">A3144</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-bubble process">🌧</div>
+      <div class="flow-name">Rain Check</div>
+      <div class="flow-sub">FC-37</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-bubble classify">🧠</div>
+      <div class="flow-name">Classify</div>
+      <div class="flow-sub">Arduino Uno</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-bubble output">💡</div>
+      <div class="flow-name">Output</div>
+      <div class="flow-sub">LED / Servo</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Built with <strong>Arduino Uno</strong> · HC-SR04 · A3144 · FC-37 · SmartSort IoT Project
+</footer>
+
+<script>
+  // Uptime Counter
+  let seconds = 0;
+  setInterval(() => {
+    seconds++;
+    const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+    const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+    const s = String(seconds % 60).padStart(2, '0');
+    document.getElementById('liveTime').innerHTML = `<span>UPTIME</span> <b>${h}:${m}:${s}</b>`;
+  }, 1000);
+
+  // Simulated sensor readings cycling
+  const scenarios = [
+    { inRange: 'YES', dist: '7.2 cm', hall: 'LOW', rain: 'DRY',    hallClass: 'active',   rainClass: 'inactive' },
+    { inRange: 'YES', dist: '5.8 cm', hall: 'HIGH', rain: 'DRY',   hallClass: 'inactive', rainClass: 'inactive' },
+    { inRange: 'YES', dist: '6.4 cm', hall: 'LOW', rain: 'WET',    hallClass: 'active',   rainClass: 'active'   },
+    { inRange: 'NO',  dist: '28.3 cm',hall: 'LOW', rain: 'DRY',    hallClass: 'inactive', rainClass: 'inactive' },
+    { inRange: 'YES', dist: '4.1 cm', hall: 'HIGH', rain: 'WET',   hallClass: 'inactive', rainClass: 'active'   },
+  ];
+
+  let idx = 0;
+  setInterval(() => {
+    idx = (idx + 1) % scenarios.length;
+    const s = scenarios[idx];
+    document.getElementById('inRange').textContent = s.inRange;
+    document.getElementById('inRange').className = 'reading-value ' + (s.inRange === 'YES' ? 'active' : 'inactive');
+    document.getElementById('distVal').textContent = s.dist;
+    document.getElementById('hallVal').textContent = s.hall;
+    document.getElementById('hallVal').className = 'reading-value ' + s.hallClass;
+    document.getElementById('rainVal').textContent = s.rain;
+    document.getElementById('rainVal').className = 'reading-value ' + s.rainClass;
+  }, 2800);
+
+  // Intersection Observer for comp-card animations
+  const cards = document.querySelectorAll('.comp-card');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) e.target.style.animationPlayState = 'running';
+    });
+  }, { threshold: 0.1 });
+  cards.forEach(c => {
+    c.style.animationPlayState = 'paused';
+    observer.observe(c);
+  });
+</script>
+</body>
+</html>
